@@ -9,6 +9,7 @@ Modes = ['pxp'] # Which versions of Exiobase you want to use?
 Years = [2019] # Which years?
 Worlds = {} # Initializing the dictionaries of all the worlds
 sN = slice(None) # Useful to include levels when slicing dataframes
+Coun_info = pd.read_excel('Aggregations\Support.xlsx', sheet_name='Countries', index_col=[0], header=[0])
 
 # Select the interested levels of information
 Consumption_cats = ['Final consumption expenditure by households'] # Before aggregation
@@ -43,14 +44,61 @@ for m in Modes:
                 for p in Sectors:
                     Res.loc[(m,y,r,p),e] = Calc.loc[(r,sN,p),e][0]
             for c in Countries:
-                Res.loc[(m,y,c,'Heating'),e] = 0.4*Worlds[m,y].EY.loc[e,(Countries,sN,Consumption_cats)].sum()
-                Res.loc[(m,y,c,'Driving'),e] = 0.6*Worlds[m,y].EY.loc[e,(Countries,sN,Consumption_cats)].sum()
+                Res.loc[(m,y,c,'Heating'),e] = Coun_info.loc[c,'GHG emiss Heating share']*Worlds[m,y].EY.loc[e,(Countries,sN,Consumption_cats)].sum()
+                Res.loc[(m,y,c,'Driving'),e] = Coun_info.loc[c,'GHG emiss Driving share']*Worlds[m,y].EY.loc[e,(Countries,sN,Consumption_cats)].sum()
 
 
-#%% Adding GHG
-Res['GHG'] = Res['CH4']*25 + Res['CO2']*1 + Res['N2O']*268
-# %%
-Map = pd.read_excel('Aggregations\Sectors to needs.xlsx', index_col=[0], header=[0]).to_dict()['Need']
-Res['Need'] = Res.index.get_level_values('Sector').map(Map)
-RES = Res.reset_index().set_index(['Mode','Year','Region','Sector','Need'])
+#%% Adding GHG with a 100-years GWP
+Res['GHG'] = Res['CH4']*25 + Res['CO2']*1 + Res['N2O']*298
+# %% Adding the need and the sector
+Map1 = pd.read_excel('Aggregations\Support.xlsx', sheet_name='Sectors to needs', index_col=[0], header=[0]).to_dict()['Need']
+Map2 = pd.read_excel('Aggregations\Support.xlsx', sheet_name='Sectors to needs', index_col=[0], header=[0]).to_dict()['Settori']
+Res['Need'] = Res.index.get_level_values('Sector').map(Map1)
+Res['Settori'] = Res.index.get_level_values('Sector').map(Map2)
+RES = Res.reset_index().set_index(['Mode','Year','Region','Sector','Settori','Need'])
+# %% Importing the color palette
+Colors = pd.read_excel('Aggregations\Support.xlsx', sheet_name='Needs colors', index_col=[0], header=[0]).to_dict()['Color']
+
+# %% Plotting the results
+import plotly.express as px
+
+plot = RES.groupby(['Need','Settori']).sum().reset_index()
+plot['% GHG'] = round(plot['GHG'] / plot['GHG'].sum()*100,1).astype(str) + '%'
+plot['GHG pc'] = round(plot['GHG']/Coun_info.loc[Countries[0],'Population']).astype(str) + ' kgCO2eq per capita'
+
+
+# make a dataframe with GHG emissions per capita by need
+GHG_need = round(plot.groupby('Need').sum()/Coun_info.loc[Countries[0],'Population']/1000,1).reset_index()
+plot['GHG_need'] = plot['Need'].map(GHG_need.set_index('Need')['GHG'])
+
+# add a column to plot in which the name of the need and the GHG_need are displayed together
+plot['Need and GHG'] = plot['Need'] + ' ~' + plot['GHG_need'].astype(str) + ' ton'
+
+fig = px.treemap(plot, path=['Need and GHG','Settori'], values='GHG', color='Need', color_discrete_map=Colors, hover_data=['% GHG','GHG pc'])
+fig.update_layout(template='plotly_white', font_family='HelveticaNeue')
+fig.update_layout(
+    plot_bgcolor='black', # Set dark background
+    paper_bgcolor='black')
+fig.update_traces(marker=dict(cornerradius=15))
+
+# Add percentage in each section of the treemap
+fig.data[0].textinfo = 'label+percent root'
+
+# Add percentage also at the bottom of the treemap
+fig.data[0].insidetextfont.size = 30
+fig.data[0].insidetextfont.color = 'black'
+
+# Add title showing the total emissions
+fig.update_layout(title_text=f"Emissioni totali di gas serra: ~{round(plot['GHG'].sum()/Coun_info.loc[Countries[0],'Population']*1e-3,1)} tonCO2eq per italiano all'anno")
+fig.update_layout(title_x=0.5)
+
+# Decrease distance between title and treemap
+fig.update_layout(title_y=0.95)
+# Make title white
+fig.update_layout(title_font_color='white')
+
+# Save the figure
+fig.write_html(f'Figures/Footprint Treemap {Years[0]}.html')
+fig.show()
+
 # %%
