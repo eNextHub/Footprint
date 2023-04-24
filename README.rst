@@ -13,3 +13,4 @@ A presto!
 
 .. raw:: html
     :file: https://github.com/eNextHub/Footprint/blob/main/Footprint%20Treemap%202019.html
+**MARIO** is a python package for handling input-output tables and models inspired by `pymrio <https://github.com/konstantinstadler/pymrio>`_.
