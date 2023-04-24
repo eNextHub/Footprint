@@ -10,3 +10,6 @@ A tutti i 2. consigliamo di scaricare la cartella zippata "Interactive chart", u
 
 Se hai domande o curiosità scrivici su Instagram @enxgen o scrivici una email a info@enextgen.it.
 A presto!
+
+.. raw:: html
+    :file: https://github.com/eNextHub/Footprint/blob/main/Footprint%20Treemap%202019.html
